@@ -20,5 +20,6 @@ data class AppUiState(
     val commissions: List<CommissionSummary> = emptyList(),
     val notifications: List<ProfessionalNotification> = emptyList(),
     val searchQuery: String = "",
+    val activeReservationId: String? = null,
     val errorMessage: String? = null,
 )

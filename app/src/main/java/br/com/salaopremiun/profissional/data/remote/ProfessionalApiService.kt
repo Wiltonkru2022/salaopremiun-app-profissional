@@ -1,12 +1,18 @@
 package br.com.salaopremiun.profissional.data.remote
 
 import br.com.salaopremiun.profissional.data.remote.dto.DeviceTokenRequestDto
+import br.com.salaopremiun.profissional.data.remote.dto.AppointmentSaveRequestDto
+import br.com.salaopremiun.profissional.data.remote.dto.ChangePasswordRequestDto
+import br.com.salaopremiun.profissional.data.remote.dto.ClientSaveRequestDto
+import br.com.salaopremiun.profissional.data.remote.dto.CommandItemRequestDto
+import br.com.salaopremiun.profissional.data.remote.dto.CommandSaveRequestDto
 import br.com.salaopremiun.profissional.data.remote.dto.LoginRequestDto
 import br.com.salaopremiun.profissional.data.remote.dto.LoginResponseDto
 import br.com.salaopremiun.profissional.data.remote.dto.PaginatedResponseDto
 import br.com.salaopremiun.profissional.data.remote.dto.RefreshRequestDto
 import br.com.salaopremiun.profissional.data.remote.dto.ReservationRequestDto
 import br.com.salaopremiun.profissional.data.remote.dto.ReservationResponseDto
+import br.com.salaopremiun.profissional.data.remote.dto.StatusRequestDto
 import br.com.salaopremiun.profissional.domain.model.AppointmentPreview
 import br.com.salaopremiun.profissional.domain.model.ClientSummary
 import br.com.salaopremiun.profissional.domain.model.CommandSummary
@@ -50,6 +56,24 @@ interface ProfessionalApiService {
     @DELETE("api/profissional/agenda/reservas/{id}")
     suspend fun cancelReservation(@Path("id") id: String)
 
+    @POST("api/profissional/agendamentos")
+    suspend fun createAppointment(@Body request: AppointmentSaveRequestDto): AppointmentPreview
+
+    @PATCH("api/profissional/agendamentos/{id}")
+    suspend fun updateAppointment(
+        @Path("id") id: String,
+        @Body request: AppointmentSaveRequestDto,
+    ): AppointmentPreview
+
+    @POST("api/profissional/agendamentos/{id}/cancelar")
+    suspend fun cancelAppointment(@Path("id") id: String)
+
+    @POST("api/profissional/agendamentos/{id}/status")
+    suspend fun updateAppointmentStatus(
+        @Path("id") id: String,
+        @Body request: StatusRequestDto,
+    )
+
     @GET("api/profissional/clientes")
     suspend fun clients(
         @Query("busca") search: String,
@@ -57,12 +81,42 @@ interface ProfessionalApiService {
         @Query("limit") limit: Int,
     ): PaginatedResponseDto<ClientSummary>
 
+    @POST("api/profissional/clientes")
+    suspend fun createClient(@Body request: ClientSaveRequestDto): ClientSummary
+
+    @PATCH("api/profissional/clientes/{id}")
+    suspend fun updateClient(
+        @Path("id") id: String,
+        @Body request: ClientSaveRequestDto,
+    ): ClientSummary
+
     @GET("api/profissional/comandas")
     suspend fun commands(
         @Query("status") status: String?,
         @Query("page") page: Int,
         @Query("limit") limit: Int,
     ): PaginatedResponseDto<CommandSummary>
+
+    @POST("api/profissional/comandas")
+    suspend fun createCommand(@Body request: CommandSaveRequestDto): CommandSummary
+
+    @POST("api/profissional/comandas/{id}/itens")
+    suspend fun addCommandItem(
+        @Path("id") id: String,
+        @Body request: CommandItemRequestDto,
+    )
+
+    @DELETE("api/profissional/comandas/{id}/itens/{itemId}")
+    suspend fun removeCommandItem(
+        @Path("id") id: String,
+        @Path("itemId") itemId: String,
+    )
+
+    @POST("api/profissional/comandas/{id}/enviar-caixa")
+    suspend fun sendCommandToCashier(@Path("id") id: String): CommandSummary
+
+    @POST("api/profissional/comandas/{id}/cancelar")
+    suspend fun cancelCommand(@Path("id") id: String)
 
     @GET("api/profissional/comissoes")
     suspend fun commissions(
@@ -79,4 +133,10 @@ interface ProfessionalApiService {
 
     @POST("api/profissional/device-token")
     suspend fun saveDeviceToken(@Body request: DeviceTokenRequestDto)
+
+    @PATCH("api/profissional/perfil")
+    suspend fun updateProfile(@Body request: ProfessionalProfile): ProfessionalProfile
+
+    @POST("api/profissional/alterar-senha")
+    suspend fun changePassword(@Body request: ChangePasswordRequestDto)
 }

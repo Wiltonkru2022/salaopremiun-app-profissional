@@ -82,7 +82,6 @@ fun LoginScreen(
                     text = "Entrar",
                     onClick = {
                         viewModel.login(login, password)
-                        onLoggedIn()
                     },
                 )
             }
@@ -209,15 +208,20 @@ fun ClientsScreen(
 }
 
 @Composable
-fun ClientFormScreen(title: String) {
+fun ClientFormScreen(title: String, viewModel: AppViewModel) {
+    var name by remember { mutableStateOf("") }
+    var phone by remember { mutableStateOf("") }
+    var email by remember { mutableStateOf("") }
+    var notes by remember { mutableStateOf("") }
     ScreenColumn {
         AppHeader(title, "Cadastro leve, validado no servidor.")
         PremiumCard {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                OutlinedTextField("", {}, Modifier.fillMaxWidth(), label = { Text("Nome completo") })
-                OutlinedTextField("", {}, Modifier.fillMaxWidth(), label = { Text("WhatsApp") })
-                OutlinedTextField("", {}, Modifier.fillMaxWidth(), label = { Text("E-mail") })
-                PrimaryButton("Salvar cliente", {})
+                OutlinedTextField(name, { name = it }, Modifier.fillMaxWidth(), label = { Text("Nome completo") })
+                OutlinedTextField(phone, { phone = it }, Modifier.fillMaxWidth(), label = { Text("WhatsApp") })
+                OutlinedTextField(email, { email = it }, Modifier.fillMaxWidth(), label = { Text("E-mail") })
+                OutlinedTextField(notes, { notes = it }, Modifier.fillMaxWidth(), label = { Text("Observações") })
+                PrimaryButton("Salvar cliente", { viewModel.saveClient(name, phone, email, notes) })
             }
         }
     }
@@ -265,17 +269,24 @@ fun AgendaScreen(
 }
 
 @Composable
-fun NewAppointmentScreen() {
+fun NewAppointmentScreen(state: AppUiState, viewModel: AppViewModel) {
+    var clienteId by remember { mutableStateOf("") }
+    var servicoId by remember { mutableStateOf("") }
+    var date by remember { mutableStateOf("2026-05-22") }
+    var time by remember { mutableStateOf("09:00") }
     ScreenColumn {
         AppHeader("Novo agendamento", "Reserva temporária com expiração no servidor.")
         PremiumCard {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text("1. Selecione o cliente")
-                Text("2. Selecione o serviço")
-                Text("3. Escolha data e horário")
-                Text("4. Confirme após validação do servidor")
-                PrimaryButton("Criar reserva temporária", {})
-                PrimaryButton("Confirmar agendamento", {})
+                OutlinedTextField(clienteId, { clienteId = it }, Modifier.fillMaxWidth(), label = { Text("ID do cliente") })
+                OutlinedTextField(servicoId, { servicoId = it }, Modifier.fillMaxWidth(), label = { Text("ID do serviço") })
+                OutlinedTextField(date, { date = it }, Modifier.fillMaxWidth(), label = { Text("Data") })
+                OutlinedTextField(time, { time = it }, Modifier.fillMaxWidth(), label = { Text("Horário") })
+                state.activeReservationId?.let {
+                    StatusBadge("Reserva ativa", StatusColor.Green)
+                }
+                PrimaryButton("Criar reserva temporária", { viewModel.createReservation(clienteId, servicoId, date, time) })
+                PrimaryButton("Confirmar agendamento", { viewModel.createAppointment(clienteId, servicoId, date, time) })
             }
         }
         EmptyState(
@@ -312,7 +323,7 @@ fun CommandsScreen(
     LaunchedEffect(Unit) { viewModel.loadCommands() }
     ScreenColumn {
         AppHeader("Comandas", "Abertas, enviadas ao caixa e fechadas.")
-        PrimaryButton("Criar nova comanda", onOpenCommand)
+        PrimaryButton("Criar nova comanda", { viewModel.createCommand(null) })
         state.commands.forEach { command ->
             ComandaCard(command = command, onOpen = onOpenCommand)
         }
@@ -321,33 +332,39 @@ fun CommandsScreen(
 
 @Composable
 fun CommandDetailScreen(
+    state: AppUiState,
+    viewModel: AppViewModel,
     onAddItem: () -> Unit,
 ) {
+    val command = state.commands.firstOrNull()
     ScreenColumn {
         AppHeader("Detalhe da comanda", "Total, itens, descontos permitidos e comissão prevista.")
         PremiumCard {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("Serviço: Progressiva Curto")
-                Text("Produto: Finalizador")
-                Text("Total: R$ 350,00", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-                StatusBadge("Aberta", StatusColor.Gold)
+                Text(command?.clientName ?: "Cliente não informado")
+                Text("Total: ${command?.total?.format() ?: "R$ 0,00"}", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                StatusBadge(command?.status?.label ?: "Aberta", StatusColor.Gold)
             }
         }
         PrimaryButton("Adicionar serviço ou produto", onAddItem)
-        PrimaryButton("Enviar para o caixa", {})
+        PrimaryButton("Enviar para o caixa", { command?.let { viewModel.sendCommandToCashier(it.id) } })
     }
 }
 
 @Composable
-fun AddCommandItemScreen() {
+fun AddCommandItemScreen(state: AppUiState, viewModel: AppViewModel) {
+    var description by remember { mutableStateOf("") }
+    var value by remember { mutableStateOf("") }
+    val command = state.commands.firstOrNull()
     ScreenColumn {
         AppHeader("Adicionar item", "Busca de serviço, produto ou extra.")
-        SearchInput("", {}, "Digite para buscar")
+        SearchInput(description, { description = it }, "Digite serviço, produto ou extra")
         PremiumCard {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("Progressiva Curto")
-                Text("R$ 300,00")
-                PrimaryButton("Adicionar item", {})
+                OutlinedTextField(value, { value = it }, Modifier.fillMaxWidth(), label = { Text("Valor") })
+                PrimaryButton("Adicionar item", {
+                    command?.let { viewModel.addCommandItem(it.id, description, value.replace(",", ".").toDoubleOrNull() ?: 0.0) }
+                })
             }
         }
     }

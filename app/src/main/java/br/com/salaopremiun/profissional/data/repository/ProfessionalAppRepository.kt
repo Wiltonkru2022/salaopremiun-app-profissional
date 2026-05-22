@@ -4,8 +4,16 @@ import br.com.salaopremiun.profissional.core.model.Money
 import br.com.salaopremiun.profissional.core.network.OracleApiConfig
 import br.com.salaopremiun.profissional.core.session.ProfessionalSession
 import br.com.salaopremiun.profissional.core.session.SessionStore
+import br.com.salaopremiun.profissional.data.local.CachedItemEntity
+import br.com.salaopremiun.profissional.data.local.LocalCacheDao
 import br.com.salaopremiun.profissional.data.remote.ProfessionalApiService
 import br.com.salaopremiun.profissional.data.remote.dto.DeviceTokenRequestDto
+import br.com.salaopremiun.profissional.data.remote.dto.AppointmentSaveRequestDto
+import br.com.salaopremiun.profissional.data.remote.dto.ClientSaveRequestDto
+import br.com.salaopremiun.profissional.data.remote.dto.CommandItemRequestDto
+import br.com.salaopremiun.profissional.data.remote.dto.CommandSaveRequestDto
+import br.com.salaopremiun.profissional.data.remote.dto.ReservationRequestDto
+import br.com.salaopremiun.profissional.data.remote.dto.StatusRequestDto
 import br.com.salaopremiun.profissional.data.remote.dto.LoginRequestDto
 import br.com.salaopremiun.profissional.data.remote.dto.RefreshRequestDto
 import br.com.salaopremiun.profissional.domain.model.AppointmentPreview
@@ -20,13 +28,18 @@ import br.com.salaopremiun.profissional.domain.model.ProfessionalNotification
 import br.com.salaopremiun.profissional.domain.model.ProfessionalProfile
 import br.com.salaopremiun.profissional.domain.model.QuickAction
 import br.com.salaopremiun.profissional.domain.model.WorkdaySummary
+import com.google.gson.Gson
+import com.google.gson.reflect.TypeToken
 import kotlinx.coroutines.flow.firstOrNull
 import java.time.LocalDate
 
 class ProfessionalAppRepository(
     private val api: ProfessionalApiService,
     private val sessionStore: SessionStore,
+    private val cacheDao: LocalCacheDao,
 ) {
+    private val gson = Gson()
+
     suspend fun login(login: String, password: String): ProfessionalProfile {
         if (OracleApiConfig.MOCK_MODE) {
             sessionStore.saveSession(
@@ -45,18 +58,17 @@ class ProfessionalAppRepository(
                 refreshToken = response.refreshToken,
             ),
         )
-        return api.me()
+        return api.me().also { cache("profile", it) }
     }
 
     suspend fun restoreSession(): ProfessionalProfile? {
         if (OracleApiConfig.MOCK_MODE) return mockProfile()
         if (sessionStore.session.firstOrNull() == null) return null
 
-        return runCatching { api.me() }.getOrElse {
+        return runCatching { api.me().also { cache("profile", it) } }.getOrElse {
             val refreshToken = sessionStore.refreshToken.firstOrNull()
             if (refreshToken.isNullOrBlank()) {
-                sessionStore.clear()
-                return null
+                return cached("profile")
             }
             runCatching {
                 val response = api.refresh(RefreshRequestDto(refreshToken = refreshToken))
@@ -66,10 +78,9 @@ class ProfessionalAppRepository(
                         refreshToken = response.refreshToken,
                     ),
                 )
-                api.me()
+                api.me().also { cache("profile", it) }
             }.getOrElse {
-                sessionStore.clear()
-                null
+                cached("profile")
             }
         }
     }
@@ -77,11 +88,16 @@ class ProfessionalAppRepository(
     suspend fun logout() {
         runCatching { api.logout() }
         sessionStore.clear()
+        cacheDao.clear()
     }
 
     suspend fun dashboard(): ProfessionalDashboard {
         if (OracleApiConfig.MOCK_MODE) return mockDashboard()
-        return api.dashboard()
+        return runCatching {
+            api.dashboard().also { cache("dashboard", it) }
+        }.getOrElse {
+            cached("dashboard") ?: throw it
+        }
     }
 
     suspend fun clients(search: String, page: Int): List<ClientSummary> {
@@ -94,35 +110,125 @@ class ProfessionalAppRepository(
             }
         }
 
-        return api.clients(
+        return runCatching {
+            api.clients(
             search = search,
             page = page,
             limit = OracleApiConfig.PAGE_LIMIT,
-        ).items
+            ).items.also { cache("clients:$search:$page", it) }
+        }.getOrElse {
+            cached("clients:$search:$page") ?: emptyList()
+        }
     }
 
     suspend fun appointmentsForToday(): List<AppointmentPreview> {
         if (OracleApiConfig.MOCK_MODE) return mockAppointments()
-        return api.agendaDay(LocalDate.now().toString())
+        val today = LocalDate.now().toString()
+        return runCatching { api.agendaDay(today).also { cache("agenda:$today", it) } }
+            .getOrElse { cached("agenda:$today") ?: emptyList() }
     }
 
     suspend fun commands(status: String? = null): List<CommandSummary> {
         if (OracleApiConfig.MOCK_MODE) return mockCommands()
-        return api.commands(status = status, page = 1, limit = OracleApiConfig.PAGE_LIMIT).items
+        val key = "commands:${status.orEmpty()}"
+        return runCatching {
+            api.commands(status = status, page = 1, limit = OracleApiConfig.PAGE_LIMIT).items
+                .also { cache(key, it) }
+        }.getOrElse { cached(key) ?: emptyList() }
     }
 
     suspend fun commissions(): List<CommissionSummary> {
         if (OracleApiConfig.MOCK_MODE) return mockCommissions()
-        return api.commissions(start = null, end = null, status = null)
+        return runCatching { api.commissions(start = null, end = null, status = null).also { cache("commissions", it) } }
+            .getOrElse { cached("commissions") ?: emptyList() }
     }
 
     suspend fun notifications(): List<ProfessionalNotification> {
         if (OracleApiConfig.MOCK_MODE) return mockNotifications()
-        return api.notifications()
+        return runCatching { api.notifications().also { cache("notifications", it) } }
+            .getOrElse { cached("notifications") ?: emptyList() }
     }
 
     suspend fun saveDeviceToken(token: String) {
         runCatching { api.saveDeviceToken(DeviceTokenRequestDto(token = token)) }
+    }
+
+    suspend fun saveClient(name: String, phone: String, email: String, notes: String): ClientSummary {
+        return api.createClient(
+            ClientSaveRequestDto(
+                nome = name,
+                telefone = phone,
+                whatsapp = phone,
+                email = email,
+                observacoes = notes,
+            ),
+        )
+    }
+
+    suspend fun createReservation(clienteId: String, servicoId: String, date: String, time: String): String {
+        return api.createReservation(
+            ReservationRequestDto(
+                clienteId = clienteId,
+                servicoId = servicoId,
+                data = date,
+                horario = time,
+            ),
+        ).id
+    }
+
+    suspend fun createAppointment(clienteId: String, servicoId: String, date: String, time: String, reservationId: String?) {
+        api.createAppointment(
+            AppointmentSaveRequestDto(
+                clienteId = clienteId,
+                servicoId = servicoId,
+                data = date,
+                horario = time,
+                reservaId = reservationId,
+            ),
+        )
+    }
+
+    suspend fun updateAppointmentStatus(id: String, status: String) {
+        api.updateAppointmentStatus(id, StatusRequestDto(status))
+    }
+
+    suspend fun cancelAppointment(id: String) {
+        api.cancelAppointment(id)
+    }
+
+    suspend fun createCommand(clienteId: String?): CommandSummary {
+        return api.createCommand(CommandSaveRequestDto(clienteId = clienteId))
+    }
+
+    suspend fun addCommandItem(commandId: String, description: String, value: Double) {
+        api.addCommandItem(
+            commandId,
+            CommandItemRequestDto(
+                tipo = "extra",
+                descricao = description,
+                quantidade = 1.0,
+                valorUnitario = value,
+            ),
+        )
+    }
+
+    suspend fun sendCommandToCashier(commandId: String): CommandSummary {
+        return api.sendCommandToCashier(commandId)
+    }
+
+    private suspend fun <T> cache(key: String, value: T) {
+        cacheDao.upsert(
+            CachedItemEntity(
+                cacheKey = key,
+                payloadJson = gson.toJson(value),
+                updatedAtMillis = System.currentTimeMillis(),
+            ),
+        )
+    }
+
+    private suspend inline fun <reified T> cached(key: String): T? {
+        val item = cacheDao.get(key) ?: return null
+        return runCatching { gson.fromJson<T>(item.payloadJson, object : TypeToken<T>() {}.type) }.getOrNull()
     }
 
     private fun mockProfile(): ProfessionalProfile {

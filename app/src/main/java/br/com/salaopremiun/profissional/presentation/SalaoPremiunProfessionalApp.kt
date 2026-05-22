@@ -3,6 +3,7 @@ package br.com.salaopremiun.profissional.presentation
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -16,6 +17,7 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import br.com.salaopremiun.profissional.core.network.ApiClient
 import br.com.salaopremiun.profissional.core.session.SessionStore
+import br.com.salaopremiun.profissional.data.local.ProfessionalDatabase
 import br.com.salaopremiun.profissional.data.repository.ProfessionalAppRepository
 import br.com.salaopremiun.profissional.presentation.components.AppChromeHeader
 import br.com.salaopremiun.profissional.presentation.components.BottomBar
@@ -40,15 +42,18 @@ import br.com.salaopremiun.profissional.presentation.screens.NotificationsScreen
 import br.com.salaopremiun.profissional.presentation.screens.ProfileScreen
 import br.com.salaopremiun.profissional.presentation.screens.SettingsScreen
 import br.com.salaopremiun.profissional.presentation.screens.SupportScreen
+import com.google.firebase.messaging.FirebaseMessaging
 
 @Composable
 fun SalaoPremiunProfessionalApp() {
     val context = LocalContext.current.applicationContext
     val sessionStore = remember { SessionStore(context) }
+    val database = remember { ProfessionalDatabase.get(context) }
     val repository = remember {
         ProfessionalAppRepository(
             api = ApiClient.createProfessionalApi(sessionStore),
             sessionStore = sessionStore,
+            cacheDao = database.cacheDao(),
         )
     }
     val viewModel: AppViewModel = viewModel(factory = AppViewModelFactory(repository))
@@ -66,6 +71,19 @@ fun SalaoPremiunProfessionalApp() {
     }
 
     ProfessionalAppBackground {
+        LaunchedEffect(state.authenticated) {
+            if (state.authenticated && currentRoute == AppDestination.Login.route) {
+                navController.navigate(AppDestination.Home.route) {
+                    popUpTo(AppDestination.Login.route) { inclusive = true }
+                    launchSingleTop = true
+                }
+            }
+            if (state.authenticated) {
+                FirebaseMessaging.getInstance().token.addOnSuccessListener { token ->
+                    if (token.isNotBlank()) viewModel.saveDeviceToken(token)
+                }
+            }
+        }
         Scaffold(
             containerColor = Color.Transparent,
             topBar = {
@@ -92,7 +110,7 @@ fun SalaoPremiunProfessionalApp() {
         ) { innerPadding ->
             NavHost(
                 navController = navController,
-                startDestination = AppDestination.Home.route,
+                startDestination = AppDestination.Login.route,
                 modifier = Modifier.padding(innerPadding),
             ) {
                 composable(AppDestination.Login.route) {
@@ -119,7 +137,7 @@ fun SalaoPremiunProfessionalApp() {
                     )
                 }
                 composable(AppDestination.ClientForm.route) {
-                    ClientFormScreen("Cliente")
+                    ClientFormScreen("Cliente", viewModel)
                 }
                 composable(AppDestination.Agenda.route) {
                     AgendaScreen(
@@ -130,7 +148,7 @@ fun SalaoPremiunProfessionalApp() {
                     )
                 }
                 composable(AppDestination.NewAppointment.route) {
-                    NewAppointmentScreen()
+                    NewAppointmentScreen(state, viewModel)
                 }
                 composable(AppDestination.AppointmentDetail.route) {
                     AppointmentDetailScreen()
@@ -147,11 +165,13 @@ fun SalaoPremiunProfessionalApp() {
                 }
                 composable(AppDestination.CommandDetail.route) {
                     CommandDetailScreen(
+                        state = state,
+                        viewModel = viewModel,
                         onAddItem = { navController.navigate(AppDestination.AddCommandItem.route) },
                     )
                 }
                 composable(AppDestination.AddCommandItem.route) {
-                    AddCommandItemScreen()
+                    AddCommandItemScreen(state, viewModel)
                 }
                 composable(AppDestination.Commissions.route) {
                     CommissionsScreen(state = state, viewModel = viewModel)

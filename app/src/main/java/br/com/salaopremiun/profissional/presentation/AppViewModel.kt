@@ -137,6 +137,124 @@ class AppViewModel(
         }
     }
 
+    fun saveDeviceToken(token: String) {
+        viewModelScope.launch {
+            repository.saveDeviceToken(token)
+        }
+    }
+
+    fun saveClient(name: String, phone: String, email: String, notes: String) {
+        viewModelScope.launch {
+            mutableUiState.update { it.copy(loading = true, errorMessage = null) }
+            runCatching { repository.saveClient(name, phone, email, notes) }
+                .onSuccess {
+                    mutableUiState.update { state ->
+                        state.copy(
+                            loading = false,
+                            clients = listOf(it) + state.clients,
+                            errorMessage = "Cliente salvo com sucesso.",
+                        )
+                    }
+                }
+                .onFailure { error ->
+                    mutableUiState.update {
+                        it.copy(loading = false, errorMessage = error.toUserMessage("Não foi possível salvar o cliente."))
+                    }
+                }
+        }
+    }
+
+    fun createReservation(clienteId: String, servicoId: String, date: String, time: String) {
+        viewModelScope.launch {
+            runCatching { repository.createReservation(clienteId, servicoId, date, time) }
+                .onSuccess { reservationId ->
+                    mutableUiState.update { it.copy(activeReservationId = reservationId, errorMessage = "Horário reservado por 10 minutos.") }
+                }
+                .onFailure { error ->
+                    mutableUiState.update { it.copy(errorMessage = error.toUserMessage("Não foi possível reservar o horário.")) }
+                }
+        }
+    }
+
+    fun createAppointment(clienteId: String, servicoId: String, date: String, time: String) {
+        viewModelScope.launch {
+            runCatching { repository.createAppointment(clienteId, servicoId, date, time, mutableUiState.value.activeReservationId) }
+                .onSuccess {
+                    mutableUiState.update { it.copy(activeReservationId = null, errorMessage = "Agendamento confirmado.") }
+                    loadAgenda()
+                }
+                .onFailure { error ->
+                    mutableUiState.update { it.copy(errorMessage = error.toUserMessage("Não foi possível confirmar o agendamento.")) }
+                }
+        }
+    }
+
+    fun confirmAppointment(id: String) = updateAppointmentStatus(id, "confirmado")
+
+    fun cancelAppointment(id: String) {
+        viewModelScope.launch {
+            runCatching { repository.cancelAppointment(id) }
+                .onSuccess {
+                    mutableUiState.update { it.copy(errorMessage = "Agendamento cancelado.") }
+                    loadAgenda()
+                }
+                .onFailure { error ->
+                    mutableUiState.update { it.copy(errorMessage = error.toUserMessage("Não foi possível cancelar o agendamento.")) }
+                }
+        }
+    }
+
+    private fun updateAppointmentStatus(id: String, status: String) {
+        viewModelScope.launch {
+            runCatching { repository.updateAppointmentStatus(id, status) }
+                .onSuccess {
+                    mutableUiState.update { it.copy(errorMessage = "Status atualizado.") }
+                    loadAgenda()
+                }
+                .onFailure { error ->
+                    mutableUiState.update { it.copy(errorMessage = error.toUserMessage("Não foi possível atualizar o status.")) }
+                }
+        }
+    }
+
+    fun createCommand(clienteId: String?) {
+        viewModelScope.launch {
+            runCatching { repository.createCommand(clienteId) }
+                .onSuccess {
+                    mutableUiState.update { state -> state.copy(commands = listOf(it) + state.commands, errorMessage = "Comanda criada.") }
+                }
+                .onFailure { error ->
+                    mutableUiState.update { it.copy(errorMessage = error.toUserMessage("Não foi possível criar a comanda.")) }
+                }
+        }
+    }
+
+    fun addCommandItem(commandId: String, description: String, value: Double) {
+        viewModelScope.launch {
+            runCatching { repository.addCommandItem(commandId, description, value) }
+                .onSuccess {
+                    mutableUiState.update { it.copy(errorMessage = "Item adicionado.") }
+                    loadCommands()
+                }
+                .onFailure { error ->
+                    mutableUiState.update { it.copy(errorMessage = error.toUserMessage("Não foi possível adicionar o item.")) }
+                }
+        }
+    }
+
+    fun sendCommandToCashier(commandId: String) {
+        viewModelScope.launch {
+            runCatching { repository.sendCommandToCashier(commandId) }
+                .onSuccess {
+                    mutableUiState.update { it.copy(errorMessage = "Comanda enviada ao caixa.") }
+                    loadCommands()
+                }
+                .onFailure { error ->
+                    mutableUiState.update { it.copy(errorMessage = error.toUserMessage("Não foi possível enviar a comanda.")) }
+                }
+        }
+    }
+
     private fun Throwable.toUserMessage(fallback: String): String {
         return when (this) {
             is HttpException -> if (code() == 401) "Login ou senha inválidos." else fallback

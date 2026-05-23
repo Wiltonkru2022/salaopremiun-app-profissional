@@ -8,12 +8,15 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.automirrored.filled.ReceiptLong
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AddCircleOutline
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.AccessTime
+import androidx.compose.material.icons.filled.Shield
+import androidx.compose.material.icons.filled.WorkspacePremium
 import androidx.compose.material.icons.filled.PersonAdd
 import androidx.compose.material.icons.filled.RequestQuote
 import androidx.compose.material3.MaterialTheme
@@ -32,6 +35,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.unit.dp
 import br.com.salaopremiun.profissional.presentation.AppUiState
 import br.com.salaopremiun.profissional.presentation.AppViewModel
@@ -51,24 +57,146 @@ import br.com.salaopremiun.profissional.presentation.components.StatusColor
 
 @Composable
 fun LoginScreen(
+    state: AppUiState,
     viewModel: AppViewModel,
-    onLoggedIn: () -> Unit,
 ) {
-    var login by remember { mutableStateOf("") }
+    var cpf by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
 
     ScreenColumn {
-        AppHeader(
-            title = "App Profissional",
-            subtitle = "Acesse sua agenda, clientes e comandas.",
-        )
+        Surface(
+            shape = androidx.compose.foundation.shape.RoundedCornerShape(24.dp),
+            color = Color(0xFF09090B),
+            tonalElevation = 0.dp,
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Surface(
+                        modifier = Modifier.size(52.dp),
+                        shape = androidx.compose.foundation.shape.RoundedCornerShape(18.dp),
+                        color = Color.White.copy(alpha = 0.10f),
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            androidx.compose.material3.Icon(
+                                imageVector = Icons.Filled.WorkspacePremium,
+                                contentDescription = null,
+                                tint = Color(0xFFF5D27A),
+                            )
+                        }
+                    }
+                    Column(modifier = Modifier.weight(1f)) {
+                        Surface(
+                            shape = androidx.compose.foundation.shape.RoundedCornerShape(999.dp),
+                            color = Color.White.copy(alpha = 0.10f),
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+                                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                androidx.compose.material3.Icon(
+                                    imageVector = Icons.Filled.WorkspacePremium,
+                                    contentDescription = null,
+                                    tint = Color(0xFFF5D27A),
+                                    modifier = Modifier.size(14.dp),
+                                )
+                                Text(
+                                    "App profissional",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFFFFF3C4),
+                                )
+                            }
+                        }
+                        Text(
+                            "Entrar na rotina do salão",
+                            style = MaterialTheme.typography.headlineSmall,
+                            fontWeight = FontWeight.Black,
+                            color = Color.White,
+                            modifier = Modifier.padding(top = 8.dp),
+                        )
+                    }
+                }
+                Text(
+                    "Agenda, comandas, clientes e comissões em um acesso leve e seguro.",
+                    color = Color(0xFFD4D4D8),
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+                Surface(
+                    shape = androidx.compose.foundation.shape.RoundedCornerShape(18.dp),
+                    color = Color.White.copy(alpha = 0.10f),
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        androidx.compose.material3.Icon(
+                            imageVector = Icons.Filled.Shield,
+                            contentDescription = null,
+                            tint = Color(0xFFF5D27A),
+                            modifier = Modifier.size(16.dp),
+                        )
+                        Text(
+                            "Login por CPF e senha cadastrados pelo salão.",
+                            color = Color.White.copy(alpha = 0.82f),
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = FontWeight.SemiBold,
+                        )
+                    }
+                }
+            }
+        }
         PremiumCard {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                Surface(
+                    shape = androidx.compose.foundation.shape.RoundedCornerShape(999.dp),
+                    color = Color(0xFFF4F4F5),
+                ) {
+                    Row(modifier = Modifier.padding(4.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Surface(
+                            shape = androidx.compose.foundation.shape.RoundedCornerShape(999.dp),
+                            color = Color(0xFF09090B),
+                        ) {
+                            Text(
+                                "CPF e senha",
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
+                                color = Color.White,
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = FontWeight.Bold,
+                            )
+                        }
+                        Text(
+                            "App profissional",
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
+                            color = Color(0xFF52525B),
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = FontWeight.Bold,
+                        )
+                    }
+                }
+                Text(
+                    "Acesse sua conta",
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFF09090B),
+                )
+                Text(
+                    "Login rápido para abrir agenda, comandas e clientes direto no celular.",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
                 OutlinedTextField(
-                    value = login,
-                    onValueChange = { login = it },
+                    value = cpf,
+                    onValueChange = { cpf = formatCpf(it) },
                     modifier = Modifier.fillMaxWidth(),
-                    label = { Text("E-mail ou telefone") },
+                    label = { Text("CPF") },
+                    placeholder = { Text("000.000.000-00") },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     singleLine = true,
                 )
                 OutlinedTextField(
@@ -76,15 +204,55 @@ fun LoginScreen(
                     onValueChange = { password = it },
                     modifier = Modifier.fillMaxWidth(),
                     label = { Text("Senha") },
+                    placeholder = { Text("Digite sua senha") },
+                    visualTransformation = PasswordVisualTransformation(),
                     singleLine = true,
                 )
+                state.errorMessage?.let {
+                    Surface(
+                        shape = androidx.compose.foundation.shape.RoundedCornerShape(18.dp),
+                        color = Color(0xFFFFF1F2),
+                    ) {
+                        Text(
+                            it,
+                            modifier = Modifier.padding(12.dp),
+                            color = Color(0xFFBE123C),
+                            style = MaterialTheme.typography.bodySmall,
+                            fontWeight = FontWeight.SemiBold,
+                        )
+                    }
+                }
                 PrimaryButton(
                     text = "Entrar",
                     onClick = {
-                        viewModel.login(login, password)
+                        viewModel.login(cpf, password)
                     },
                 )
+                Text(
+                    "Esqueceu sua senha?",
+                    modifier = Modifier.fillMaxWidth(),
+                    color = Color(0xFF52525B),
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                Text(
+                    "Versão 1.0.0",
+                    modifier = Modifier.fillMaxWidth(),
+                    color = Color(0xFFA1A1AA),
+                    style = MaterialTheme.typography.labelSmall,
+                )
             }
+        }
+    }
+}
+
+private fun formatCpf(value: String): String {
+    val digits = value.filter(Char::isDigit).take(11)
+    return buildString {
+        digits.forEachIndexed { index, char ->
+            if (index == 3 || index == 6) append('.')
+            if (index == 9) append('-')
+            append(char)
         }
     }
 }

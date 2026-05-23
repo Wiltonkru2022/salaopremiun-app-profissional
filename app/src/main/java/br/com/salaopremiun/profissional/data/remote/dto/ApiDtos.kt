@@ -1,7 +1,7 @@
 package br.com.salaopremiun.profissional.data.remote.dto
 
 data class LoginRequestDto(
-    val login: String,
+    val cpf: String,
     val senha: String,
 )
 

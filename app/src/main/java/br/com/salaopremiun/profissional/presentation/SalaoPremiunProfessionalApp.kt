@@ -115,8 +115,8 @@ fun SalaoPremiunProfessionalApp() {
             ) {
                 composable(AppDestination.Login.route) {
                     LoginScreen(
+                        state = state,
                         viewModel = viewModel,
-                        onLoggedIn = { navController.navigate(AppDestination.Home.route) },
                     )
                 }
                 composable(AppDestination.Home.route) {

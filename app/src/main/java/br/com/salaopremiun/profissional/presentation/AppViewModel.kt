@@ -24,11 +24,11 @@ class AppViewModel(
         restoreSession()
     }
 
-    fun login(login: String, password: String) {
+    fun login(cpf: String, password: String) {
         viewModelScope.launch {
             mutableUiState.update { it.copy(loading = true, errorMessage = null) }
             runCatching {
-                val profile = repository.login(login, password)
+                val profile = repository.login(cpf, password)
                 mutableUiState.update {
                     it.copy(
                         authenticated = profile.active,
@@ -42,7 +42,7 @@ class AppViewModel(
                     it.copy(
                         authenticated = false,
                         loading = false,
-                        errorMessage = error.toUserMessage("Não foi possível entrar. Confira seus dados e tente novamente."),
+                        errorMessage = error.toUserMessage("Não foi possível entrar. Confira seu CPF e sua senha."),
                     )
                 }
             }

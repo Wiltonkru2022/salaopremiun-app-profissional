@@ -40,7 +40,7 @@ class ProfessionalAppRepository(
 ) {
     private val gson = Gson()
 
-    suspend fun login(login: String, password: String): ProfessionalProfile {
+    suspend fun login(cpf: String, password: String): ProfessionalProfile {
         if (OracleApiConfig.MOCK_MODE) {
             sessionStore.saveSession(
                 ProfessionalSession(
@@ -51,7 +51,7 @@ class ProfessionalAppRepository(
             return mockProfile()
         }
 
-        val response = api.login(LoginRequestDto(login = login, senha = password))
+        val response = api.login(LoginRequestDto(cpf = cpf, senha = password))
         sessionStore.saveSession(
             ProfessionalSession(
                 accessToken = response.accessToken,

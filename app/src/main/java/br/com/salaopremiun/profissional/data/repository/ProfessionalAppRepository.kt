@@ -15,10 +15,16 @@ import br.com.salaopremiun.profissional.data.remote.dto.CommandSaveRequestDto
 import br.com.salaopremiun.profissional.data.remote.dto.ReservationRequestDto
 import br.com.salaopremiun.profissional.data.remote.dto.StatusRequestDto
 import br.com.salaopremiun.profissional.data.remote.dto.LoginRequestDto
+import br.com.salaopremiun.profissional.data.remote.dto.ProfileUpdateRequestDto
 import br.com.salaopremiun.profissional.data.remote.dto.RefreshRequestDto
+import br.com.salaopremiun.profissional.data.remote.dto.ChangePasswordRequestDto
+import br.com.salaopremiun.profissional.domain.model.AppointmentDetail
 import br.com.salaopremiun.profissional.domain.model.AppointmentPreview
+import br.com.salaopremiun.profissional.domain.model.CatalogItem
+import br.com.salaopremiun.profissional.domain.model.ClientDetail
 import br.com.salaopremiun.profissional.domain.model.AppointmentStatus
 import br.com.salaopremiun.profissional.domain.model.ClientSummary
+import br.com.salaopremiun.profissional.domain.model.CommandDetail
 import br.com.salaopremiun.profissional.domain.model.CommandStatus
 import br.com.salaopremiun.profissional.domain.model.CommandSummary
 import br.com.salaopremiun.profissional.domain.model.CommissionStatus
@@ -128,6 +134,10 @@ class ProfessionalAppRepository(
             .getOrElse { cached("agenda:$today") ?: emptyList() }
     }
 
+    suspend fun appointment(id: String): AppointmentDetail {
+        return api.appointment(id)
+    }
+
     suspend fun commands(status: String? = null): List<CommandSummary> {
         if (OracleApiConfig.MOCK_MODE) return mockCommands()
         val key = "commands:${status.orEmpty()}"
@@ -135,6 +145,26 @@ class ProfessionalAppRepository(
             api.commands(status = status, page = 1, limit = OracleApiConfig.PAGE_LIMIT).items
                 .also { cache(key, it) }
         }.getOrElse { cached(key) ?: emptyList() }
+    }
+
+    suspend fun client(id: String): ClientDetail {
+        return api.client(id)
+    }
+
+    suspend fun clientHistory(id: String): List<AppointmentPreview> {
+        return api.clientHistory(id)
+    }
+
+    suspend fun command(id: String): CommandDetail {
+        return api.command(id)
+    }
+
+    suspend fun services(search: String = ""): List<CatalogItem> {
+        return api.services(search)
+    }
+
+    suspend fun products(search: String = ""): List<CatalogItem> {
+        return api.products(search)
     }
 
     suspend fun commissions(): List<CommissionSummary> {
@@ -151,6 +181,32 @@ class ProfessionalAppRepository(
 
     suspend fun saveDeviceToken(token: String) {
         runCatching { api.saveDeviceToken(DeviceTokenRequestDto(token = token)) }
+    }
+
+    suspend fun updateProfile(
+        name: String?,
+        displayName: String?,
+        phone: String?,
+        whatsapp: String?,
+        email: String?,
+        bio: String?,
+        notificationsEnabled: Boolean?,
+    ): ProfessionalProfile {
+        return api.updateProfile(
+            ProfileUpdateRequestDto(
+                name = name,
+                displayName = displayName,
+                phone = phone,
+                whatsapp = whatsapp,
+                email = email,
+                bio = bio,
+                notificacoes_ativas = notificationsEnabled,
+            ),
+        ).also { cache("profile", it) }
+    }
+
+    suspend fun changePassword(currentPassword: String, newPassword: String) {
+        api.changePassword(ChangePasswordRequestDto(senhaAtual = currentPassword, novaSenha = newPassword))
     }
 
     suspend fun saveClient(name: String, phone: String, email: String, notes: String): ClientSummary {
@@ -188,6 +244,19 @@ class ProfessionalAppRepository(
         )
     }
 
+    suspend fun updateAppointment(id: String, servicoId: String, date: String, time: String, notes: String): AppointmentPreview {
+        return api.updateAppointment(
+            id,
+            AppointmentSaveRequestDto(
+                clienteId = "",
+                servicoId = servicoId,
+                data = date,
+                horario = time,
+                observacoes = notes,
+            ),
+        )
+    }
+
     suspend fun updateAppointmentStatus(id: String, status: String) {
         api.updateAppointmentStatus(id, StatusRequestDto(status))
     }
@@ -214,6 +283,10 @@ class ProfessionalAppRepository(
 
     suspend fun sendCommandToCashier(commandId: String): CommandSummary {
         return api.sendCommandToCashier(commandId)
+    }
+
+    suspend fun removeCommandItem(commandId: String, itemId: String) {
+        api.removeCommandItem(commandId, itemId)
     }
 
     private suspend fun <T> cache(key: String, value: T) {

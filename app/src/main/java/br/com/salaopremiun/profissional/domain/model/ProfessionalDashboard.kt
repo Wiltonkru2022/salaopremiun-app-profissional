@@ -35,6 +35,9 @@ enum class AppointmentStatus(
     PendingConfirmation("Pendente de confirmação"),
     Confirmed("Confirmado"),
     InProgress("Em atendimento"),
+    Completed("Atendido"),
+    NoShow("Não compareceu"),
+    Canceled("Cancelado"),
 }
 
 data class QuickAction(

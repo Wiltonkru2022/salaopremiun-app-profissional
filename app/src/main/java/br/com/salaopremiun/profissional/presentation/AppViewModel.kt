@@ -116,10 +116,45 @@ class AppViewModel(
         }
     }
 
+    fun loadAppointmentDetail(id: String) {
+        viewModelScope.launch {
+            runCatching { repository.appointment(id) }
+                .onSuccess { detail -> mutableUiState.update { it.copy(selectedAppointment = detail, errorMessage = null) } }
+                .onFailure { error -> mutableUiState.update { it.copy(errorMessage = error.toUserMessage("Não foi possível carregar o atendimento.")) } }
+        }
+    }
+
     fun loadCommands() {
         viewModelScope.launch {
             val commands = repository.commands()
             mutableUiState.update { it.copy(commands = commands) }
+        }
+    }
+
+    fun loadCommandDetail(id: String) {
+        viewModelScope.launch {
+            runCatching { repository.command(id) }
+                .onSuccess { command -> mutableUiState.update { it.copy(selectedCommand = command, errorMessage = null) } }
+                .onFailure { error -> mutableUiState.update { it.copy(errorMessage = error.toUserMessage("Não foi possível carregar a comanda.")) } }
+        }
+    }
+
+    fun loadClientDetail(id: String) {
+        viewModelScope.launch {
+            runCatching {
+                repository.client(id) to repository.clientHistory(id)
+            }.onSuccess { (client, history) ->
+                mutableUiState.update { it.copy(selectedClient = client, clientHistory = history, errorMessage = null) }
+            }.onFailure { error ->
+                mutableUiState.update { it.copy(errorMessage = error.toUserMessage("Não foi possível carregar o cliente.")) }
+            }
+        }
+    }
+
+    fun loadCatalog(search: String = "") {
+        viewModelScope.launch {
+            runCatching { repository.services(search) to repository.products(search) }
+                .onSuccess { (services, products) -> mutableUiState.update { it.copy(services = services, products = products) } }
         }
     }
 
@@ -140,6 +175,38 @@ class AppViewModel(
     fun saveDeviceToken(token: String) {
         viewModelScope.launch {
             repository.saveDeviceToken(token)
+        }
+    }
+
+    fun updateProfile(
+        name: String?,
+        displayName: String?,
+        phone: String?,
+        whatsapp: String?,
+        email: String?,
+        bio: String?,
+        notificationsEnabled: Boolean?,
+    ) {
+        viewModelScope.launch {
+            runCatching {
+                repository.updateProfile(name, displayName, phone, whatsapp, email, bio, notificationsEnabled)
+            }.onSuccess { profile ->
+                mutableUiState.update { it.copy(profile = profile, errorMessage = "Perfil atualizado com sucesso.") }
+            }.onFailure { error ->
+                mutableUiState.update { it.copy(errorMessage = error.toUserMessage("Não foi possível atualizar o perfil.")) }
+            }
+        }
+    }
+
+    fun changePassword(currentPassword: String, newPassword: String, confirmation: String) {
+        viewModelScope.launch {
+            if (newPassword != confirmation) {
+                mutableUiState.update { it.copy(errorMessage = "A confirmação da senha não confere.") }
+                return@launch
+            }
+            runCatching { repository.changePassword(currentPassword, newPassword) }
+                .onSuccess { mutableUiState.update { it.copy(errorMessage = "Senha atualizada com sucesso.") } }
+                .onFailure { error -> mutableUiState.update { it.copy(errorMessage = error.toUserMessage("Não foi possível alterar a senha.")) } }
         }
     }
 
@@ -191,6 +258,22 @@ class AppViewModel(
 
     fun confirmAppointment(id: String) = updateAppointmentStatus(id, "confirmado")
 
+    fun markNoShow(id: String) = updateAppointmentStatus(id, "faltou")
+
+    fun updateAppointment(id: String, serviceId: String, date: String, time: String, notes: String) {
+        viewModelScope.launch {
+            runCatching { repository.updateAppointment(id, serviceId, date, time, notes) }
+                .onSuccess {
+                    mutableUiState.update { state -> state.copy(errorMessage = "Atendimento atualizado.") }
+                    loadAppointmentDetail(id)
+                    loadAgenda()
+                }
+                .onFailure { error ->
+                    mutableUiState.update { it.copy(errorMessage = error.toUserMessage("Não foi possível salvar as alterações.")) }
+                }
+        }
+    }
+
     fun cancelAppointment(id: String) {
         viewModelScope.launch {
             runCatching { repository.cancelAppointment(id) }
@@ -238,6 +321,20 @@ class AppViewModel(
                 }
                 .onFailure { error ->
                     mutableUiState.update { it.copy(errorMessage = error.toUserMessage("Não foi possível adicionar o item.")) }
+                }
+        }
+    }
+
+    fun removeCommandItem(commandId: String, itemId: String) {
+        viewModelScope.launch {
+            runCatching { repository.removeCommandItem(commandId, itemId) }
+                .onSuccess {
+                    mutableUiState.update { it.copy(errorMessage = "Item removido.") }
+                    loadCommandDetail(commandId)
+                    loadCommands()
+                }
+                .onFailure { error ->
+                    mutableUiState.update { it.copy(errorMessage = error.toUserMessage("Não foi possível remover o item.")) }
                 }
         }
     }

@@ -59,6 +59,16 @@ data class ChangePasswordRequestDto(
     val novaSenha: String,
 )
 
+data class ProfileUpdateRequestDto(
+    val name: String? = null,
+    val displayName: String? = null,
+    val phone: String? = null,
+    val whatsapp: String? = null,
+    val email: String? = null,
+    val bio: String? = null,
+    val notificacoes_ativas: Boolean? = null,
+)
+
 data class PaginatedResponseDto<T>(
     val items: List<T>,
     val page: Int,

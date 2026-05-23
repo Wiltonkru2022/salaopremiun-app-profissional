@@ -9,12 +9,17 @@ import br.com.salaopremiun.profissional.data.remote.dto.CommandSaveRequestDto
 import br.com.salaopremiun.profissional.data.remote.dto.LoginRequestDto
 import br.com.salaopremiun.profissional.data.remote.dto.LoginResponseDto
 import br.com.salaopremiun.profissional.data.remote.dto.PaginatedResponseDto
+import br.com.salaopremiun.profissional.data.remote.dto.ProfileUpdateRequestDto
 import br.com.salaopremiun.profissional.data.remote.dto.RefreshRequestDto
 import br.com.salaopremiun.profissional.data.remote.dto.ReservationRequestDto
 import br.com.salaopremiun.profissional.data.remote.dto.ReservationResponseDto
 import br.com.salaopremiun.profissional.data.remote.dto.StatusRequestDto
+import br.com.salaopremiun.profissional.domain.model.AppointmentDetail
 import br.com.salaopremiun.profissional.domain.model.AppointmentPreview
+import br.com.salaopremiun.profissional.domain.model.CatalogItem
+import br.com.salaopremiun.profissional.domain.model.ClientDetail
 import br.com.salaopremiun.profissional.domain.model.ClientSummary
+import br.com.salaopremiun.profissional.domain.model.CommandDetail
 import br.com.salaopremiun.profissional.domain.model.CommandSummary
 import br.com.salaopremiun.profissional.domain.model.CommissionSummary
 import br.com.salaopremiun.profissional.domain.model.ProfessionalDashboard
@@ -59,6 +64,9 @@ interface ProfessionalApiService {
     @POST("api/profissional/agendamentos")
     suspend fun createAppointment(@Body request: AppointmentSaveRequestDto): AppointmentPreview
 
+    @GET("api/profissional/agendamentos/{id}")
+    suspend fun appointment(@Path("id") id: String): AppointmentDetail
+
     @PATCH("api/profissional/agendamentos/{id}")
     suspend fun updateAppointment(
         @Path("id") id: String,
@@ -84,6 +92,12 @@ interface ProfessionalApiService {
     @POST("api/profissional/clientes")
     suspend fun createClient(@Body request: ClientSaveRequestDto): ClientSummary
 
+    @GET("api/profissional/clientes/{id}")
+    suspend fun client(@Path("id") id: String): ClientDetail
+
+    @GET("api/profissional/clientes/{id}/historico")
+    suspend fun clientHistory(@Path("id") id: String): List<AppointmentPreview>
+
     @PATCH("api/profissional/clientes/{id}")
     suspend fun updateClient(
         @Path("id") id: String,
@@ -99,6 +113,15 @@ interface ProfessionalApiService {
 
     @POST("api/profissional/comandas")
     suspend fun createCommand(@Body request: CommandSaveRequestDto): CommandSummary
+
+    @GET("api/profissional/comandas/{id}")
+    suspend fun command(@Path("id") id: String): CommandDetail
+
+    @GET("api/profissional/servicos")
+    suspend fun services(@Query("busca") search: String): List<CatalogItem>
+
+    @GET("api/profissional/produtos")
+    suspend fun products(@Query("busca") search: String): List<CatalogItem>
 
     @POST("api/profissional/comandas/{id}/itens")
     suspend fun addCommandItem(
@@ -135,7 +158,7 @@ interface ProfessionalApiService {
     suspend fun saveDeviceToken(@Body request: DeviceTokenRequestDto)
 
     @PATCH("api/profissional/perfil")
-    suspend fun updateProfile(@Body request: ProfessionalProfile): ProfessionalProfile
+    suspend fun updateProfile(@Body request: ProfileUpdateRequestDto): ProfessionalProfile
 
     @POST("api/profissional/alterar-senha")
     suspend fun changePassword(@Body request: ChangePasswordRequestDto)

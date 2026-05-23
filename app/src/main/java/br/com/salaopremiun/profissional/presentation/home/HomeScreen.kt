@@ -394,6 +394,9 @@ private fun statusColors(status: AppointmentStatus): Pair<Color, Color> {
         AppointmentStatus.PendingConfirmation -> Color(0xFFFFE8D9) to Color(0xFF9A3412)
         AppointmentStatus.Confirmed -> Color(0xFFDDFBF0) to Color(0xFF047857)
         AppointmentStatus.InProgress -> Color(0xFFDDEBFF) to Color(0xFF1D4ED8)
+        AppointmentStatus.Completed -> Color(0xFFDDEBFF) to Color(0xFF1D4ED8)
+        AppointmentStatus.NoShow -> Color(0xFFFEE2E2) to Color(0xFFB42318)
+        AppointmentStatus.Canceled -> Color(0xFFFEE2E2) to Color(0xFFB42318)
     }
 }
 

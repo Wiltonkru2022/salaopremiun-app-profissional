@@ -257,6 +257,16 @@ private fun formatCpf(value: String): String {
     }
 }
 
+private fun formatPhone(value: String): String {
+    val digits = value.filter(Char::isDigit)
+    return when (digits.length) {
+        11 -> "(${digits.take(2)}) ${digits.substring(2, 7)}-${digits.takeLast(4)}"
+        10 -> "(${digits.take(2)}) ${digits.substring(2, 6)}-${digits.takeLast(4)}"
+        0 -> "Não informado"
+        else -> value
+    }
+}
+
 @Composable
 fun DashboardScreen(
     state: AppUiState,
@@ -356,7 +366,7 @@ fun ClientsScreen(
     state: AppUiState,
     viewModel: AppViewModel,
     onNewClient: () -> Unit,
-    onOpenClient: () -> Unit,
+    onOpenClient: (String) -> Unit,
 ) {
     LaunchedEffect(Unit) { viewModel.loadClients() }
     ScreenColumn {
@@ -370,7 +380,7 @@ fun ClientsScreen(
             EmptyState("Nenhum cliente encontrado", "A busca retorna poucos campos para poupar a API e o banco.")
         }
         state.clients.forEach { client ->
-            ClientCard(client = client, onOpen = onOpenClient)
+            ClientCard(client = client, onOpen = { onOpenClient(client.id) })
         }
     }
 }
@@ -396,11 +406,53 @@ fun ClientFormScreen(title: String, viewModel: AppViewModel) {
 }
 
 @Composable
+fun ClientDetailScreen(
+    state: AppUiState,
+    viewModel: AppViewModel,
+    clientId: String,
+    onNewAppointment: (String) -> Unit,
+    onNewCommand: (String) -> Unit,
+) {
+    LaunchedEffect(clientId) {
+        if (clientId.isNotBlank()) viewModel.loadClientDetail(clientId)
+    }
+    val client = state.selectedClient
+    ScreenColumn {
+        PremiumCard {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                StatusBadge(client?.status ?: "Ativo", StatusColor.Green)
+                Text(client?.name ?: "Cliente", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Black)
+                InfoRow("WhatsApp", formatPhone(client?.whatsapp?.ifBlank { client.phone }.orEmpty()))
+                InfoRow("E-mail", client?.email?.ifBlank { "Não informado" } ?: "Não informado")
+                InfoRow("CPF", client?.cpf?.ifBlank { "Não informado" } ?: "Não informado")
+                if (!client?.notes.isNullOrBlank()) Text(client?.notes.orEmpty(), color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            SmallActionButton("Novo agendamento", Modifier.weight(1f), onClick = { onNewAppointment(clientId) })
+            SmallActionButton("Nova comanda", Modifier.weight(1f), onClick = { onNewCommand(clientId) })
+        }
+        PremiumCard {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                AppHeader("Últimos agendamentos", "Histórico recente desse cliente.")
+                if (state.clientHistory.isEmpty()) {
+                    EmptyInline("Nenhum histórico encontrado.")
+                } else {
+                    state.clientHistory.forEach { appointment ->
+                        AppointmentCard(appointment = appointment, onOpen = { viewModel.loadAppointmentDetail(appointment.id) })
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
 fun AgendaScreen(
     state: AppUiState,
     viewModel: AppViewModel,
     onNewAppointment: () -> Unit,
-    onOpenAppointment: () -> Unit,
+    onOpenAppointment: (String) -> Unit,
 ) {
     var selectedDay by remember { mutableIntStateOf(22) }
     LaunchedEffect(Unit) { viewModel.loadAgenda() }
@@ -433,7 +485,7 @@ fun AgendaScreen(
                     EmptyInline("Nenhum atendimento para o dia selecionado.")
                 } else {
                     state.appointments.forEach { appointment ->
-                        AppointmentCard(appointment = appointment, onOpen = onOpenAppointment)
+                        AppointmentCard(appointment = appointment, onOpen = { onOpenAppointment(appointment.id) })
                     }
                 }
             }
@@ -483,38 +535,71 @@ fun NewAppointmentScreen(state: AppUiState, viewModel: AppViewModel) {
 }
 
 @Composable
-fun AppointmentDetailScreen() {
+fun AppointmentDetailScreen(
+    state: AppUiState,
+    viewModel: AppViewModel,
+    appointmentId: String,
+    onEdit: () -> Unit,
+    onOpenCommand: (String) -> Unit,
+) {
+    LaunchedEffect(appointmentId) {
+        if (appointmentId.isNotBlank()) viewModel.loadAppointmentDetail(appointmentId)
+    }
+    val appointment = state.selectedAppointment
     ScreenColumn {
         PremiumCard {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 AppHeader("Detalhe do atendimento", "Status, cliente, serviço, horário e ações.")
-                StatusBadge("Confirmado", StatusColor.Green)
-                InfoRow("Cliente", "Cliente selecionado")
-                InfoRow("Serviço", "Serviço do atendimento")
-                InfoRow("Horário", "09:00 às 10:00")
+                StatusBadge(appointment?.status?.label ?: "Carregando", StatusColor.Green)
+                InfoRow("Cliente", appointment?.clientName ?: "Cliente")
+                InfoRow("Serviço", appointment?.serviceName ?: "Serviço")
+                InfoRow("Horário", "${appointment?.timeStart?.take(5).orEmpty()} às ${appointment?.timeEnd?.take(5).orEmpty()}")
+                InfoRow("Valor", appointment?.servicePrice?.format() ?: "R$ 0,00")
+                if (!appointment?.notes.isNullOrBlank()) {
+                    Text(appointment?.notes.orEmpty(), color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
             }
         }
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            SmallActionButton("Confirmar", Modifier.weight(1f))
-            SmallActionButton("Cancelar", Modifier.weight(1f), danger = true)
+            SmallActionButton("Confirmar", Modifier.weight(1f), onClick = { viewModel.confirmAppointment(appointmentId) })
+            SmallActionButton("Faltou", Modifier.weight(1f), danger = true, onClick = { viewModel.markNoShow(appointmentId) })
         }
-        PrimaryButton("Editar atendimento", {})
+        PrimaryButton("Editar atendimento", onEdit)
+        if (!appointment?.commandId.isNullOrBlank()) {
+            PrimaryButton("Abrir comanda", { onOpenCommand(appointment?.commandId.orEmpty()) })
+        } else {
+            PrimaryButton("Abrir comanda deste atendimento", { viewModel.createCommand(appointment?.clientId) })
+        }
+        PrimaryButton("Cancelar atendimento", { viewModel.cancelAppointment(appointmentId) })
     }
 }
 
 @Composable
-fun EditAppointmentScreen() {
+fun EditAppointmentScreen(
+    state: AppUiState,
+    viewModel: AppViewModel,
+    appointmentId: String,
+) {
+    LaunchedEffect(appointmentId) {
+        if (appointmentId.isNotBlank()) viewModel.loadAppointmentDetail(appointmentId)
+    }
+    val appointment = state.selectedAppointment
+    var serviceId by remember(appointment?.serviceId) { mutableStateOf(appointment?.serviceId.orEmpty()) }
+    var date by remember(appointment?.date) { mutableStateOf(appointment?.date.orEmpty()) }
+    var time by remember(appointment?.timeStart) { mutableStateOf(appointment?.timeStart?.take(5).orEmpty()) }
+    var notes by remember(appointment?.notes) { mutableStateOf(appointment?.notes.orEmpty()) }
     ScreenColumn {
         AppHeader("Editar atendimento", "A alteração de horário cria uma nova validação no servidor.")
         PremiumCard {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                OutlinedTextField("", {}, Modifier.fillMaxWidth(), label = { Text("Cliente") })
-                OutlinedTextField("", {}, Modifier.fillMaxWidth(), label = { Text("Serviço") })
+                OutlinedTextField(appointment?.clientName.orEmpty(), {}, Modifier.fillMaxWidth(), label = { Text("Cliente") }, enabled = false)
+                OutlinedTextField(serviceId, { serviceId = it }, Modifier.fillMaxWidth(), label = { Text("Serviço") })
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    OutlinedTextField("", {}, Modifier.weight(1f), label = { Text("Data") })
-                    OutlinedTextField("", {}, Modifier.weight(1f), label = { Text("Horário") })
+                    OutlinedTextField(date, { date = it }, Modifier.weight(1f), label = { Text("Data") })
+                    OutlinedTextField(time, { time = it }, Modifier.weight(1f), label = { Text("Horário") })
                 }
-                PrimaryButton("Salvar alterações", {})
+                OutlinedTextField(notes, { notes = it }, Modifier.fillMaxWidth(), label = { Text("Observações") })
+                PrimaryButton("Salvar alterações", { viewModel.updateAppointment(appointmentId, serviceId, date, time, notes) })
             }
         }
     }
@@ -524,7 +609,8 @@ fun EditAppointmentScreen() {
 fun CommandsScreen(
     state: AppUiState,
     viewModel: AppViewModel,
-    onOpenCommand: () -> Unit,
+    onNewCommand: () -> Unit,
+    onOpenCommand: (String) -> Unit,
 ) {
     LaunchedEffect(Unit) { viewModel.loadCommands() }
     ScreenColumn {
@@ -533,12 +619,39 @@ fun CommandsScreen(
             MetricCard("Total", state.commands.sumOf { it.total.cents }.let { "R$ ${"%.2f".format(it / 100.0).replace(".", ",")}" }, Modifier.weight(1f))
         }
         FilterRow(listOf("Abertas", "Enviadas", "Fechadas"))
-        PrimaryButton("Criar nova comanda", { viewModel.createCommand(null) })
+        PrimaryButton("Criar nova comanda", onNewCommand)
         if (state.commands.isEmpty()) {
             EmptyState("Nenhuma comanda encontrada", "As comandas abertas e enviadas ao caixa aparecem aqui.")
         } else {
             state.commands.forEach { command ->
-                ComandaCard(command = command, onOpen = onOpenCommand)
+                ComandaCard(command = command, onOpen = { onOpenCommand(command.id) })
+            }
+        }
+    }
+}
+
+@Composable
+fun NewCommandScreen(
+    state: AppUiState,
+    viewModel: AppViewModel,
+) {
+    LaunchedEffect(Unit) { viewModel.loadClients() }
+    var clientSearch by remember { mutableStateOf("") }
+    var selectedClient by remember { mutableStateOf("") }
+    var notes by remember { mutableStateOf("") }
+    ScreenColumn {
+        PremiumCard {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                AppHeader("Nova comanda", "Abra atendimento direto no app.")
+                SearchInput(clientSearch, { value ->
+                    clientSearch = value
+                    viewModel.loadClients(value)
+                }, "Digite nome ou WhatsApp")
+                state.clients.take(5).forEach { client ->
+                    ProfileAction(client.name, client.phone.ifBlank { "Selecionar cliente" }, { selectedClient = client.id })
+                }
+                OutlinedTextField(notes, { notes = it }, Modifier.fillMaxWidth(), label = { Text("Observações") })
+                PrimaryButton("Criar comanda no app", { viewModel.createCommand(selectedClient.ifBlank { null }) })
             }
         }
     }
@@ -548,9 +661,13 @@ fun CommandsScreen(
 fun CommandDetailScreen(
     state: AppUiState,
     viewModel: AppViewModel,
+    commandId: String,
     onAddItem: () -> Unit,
 ) {
-    val command = state.commands.firstOrNull()
+    LaunchedEffect(commandId) {
+        if (commandId.isNotBlank()) viewModel.loadCommandDetail(commandId)
+    }
+    val command = state.selectedCommand
     ScreenColumn {
         PremiumCard {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -558,8 +675,21 @@ fun CommandDetailScreen(
                 Text(command?.clientName ?: "Cliente não informado", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Black)
                 Text("Total: ${command?.total?.format() ?: "R$ 0,00"}", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
                 StatusBadge(command?.status?.label ?: "Aberta", StatusColor.Gold)
-                InfoRow("Itens", "${command?.itemCount ?: 0}")
+                InfoRow("Itens", "${command?.items?.size ?: 0}")
+                InfoRow("Subtotal", command?.subtotal?.format() ?: "R$ 0,00")
+                InfoRow("Desconto", command?.discount?.format() ?: "R$ 0,00")
                 InfoRow("Comissão prevista", "Calculada após os itens")
+            }
+        }
+        command?.items?.forEach { item ->
+            PremiumCard {
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text(item.description, fontWeight = FontWeight.Bold)
+                    InfoRow("Tipo", item.type)
+                    InfoRow("Quantidade", item.quantity.toString())
+                    InfoRow("Total", item.totalValue.format())
+                    SmallActionButton("Remover item", danger = true, onClick = { viewModel.removeCommandItem(command.id, item.id) })
+                }
             }
         }
         PrimaryButton("Adicionar serviço ou produto", onAddItem)
@@ -571,16 +701,27 @@ fun CommandDetailScreen(
 fun AddCommandItemScreen(state: AppUiState, viewModel: AppViewModel) {
     var description by remember { mutableStateOf("") }
     var value by remember { mutableStateOf("") }
-    val command = state.commands.firstOrNull()
+    val commandId = state.selectedCommand?.id ?: state.commands.firstOrNull()?.id
+    LaunchedEffect(description) { viewModel.loadCatalog(description) }
     ScreenColumn {
         PremiumCard {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 AppHeader("Adicionar item", "Busque serviço, produto ou extra.")
                 SearchInput(description, { description = it }, "Digite para procurar")
+                (state.services + state.products).take(6).forEach { item ->
+                    ProfileAction(
+                        title = item.name,
+                        subtitle = "${item.type.replaceFirstChar { it.uppercase() }} • ${item.price.format()}",
+                        onClick = {
+                            description = item.name
+                            value = "%.2f".format(item.price.cents / 100.0).replace(".", ",")
+                        },
+                    )
+                }
                 OutlinedTextField(value, { value = it }, Modifier.fillMaxWidth(), label = { Text("Valor") })
                 FilterRow(listOf("Serviço", "Produto", "Extra"))
                 PrimaryButton("Adicionar item", {
-                    command?.let { viewModel.addCommandItem(it.id, description, value.replace(",", ".").toDoubleOrNull() ?: 0.0) }
+                    commandId?.let { viewModel.addCommandItem(it, description, value.replace(",", ".").toDoubleOrNull() ?: 0.0) }
                 })
             }
         }
@@ -649,10 +790,17 @@ fun NotificationsScreen(
 @Composable
 fun ProfileScreen(
     state: AppUiState,
+    onDetails: () -> Unit,
+    onReviews: () -> Unit,
+    onNotifications: () -> Unit,
     onSettings: () -> Unit,
     onPassword: () -> Unit,
     onSupport: () -> Unit,
+    onQuestions: () -> Unit,
     onLegal: () -> Unit,
+    onPrivacy: () -> Unit,
+    onInstall: () -> Unit,
+    onOnboarding: () -> Unit,
     onLogout: () -> Unit,
 ) {
     ScreenColumn {
@@ -663,15 +811,24 @@ fun ProfileScreen(
                 Text(state.profile?.salonName ?: "SalaoPremiun", color = MaterialTheme.colorScheme.onSurfaceVariant)
                 InfoRow("E-mail", state.profile?.email ?: "Não informado")
                 InfoRow("Telefone", state.profile?.phone ?: "Não informado")
+                InfoRow("CPF", state.profile?.cpf?.ifBlank { "Não informado" } ?: "Não informado")
+                InfoRow("Pix", state.profile?.pixKey?.ifBlank { "Não informado" } ?: "Não informado")
             }
         }
         PremiumCard {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text("Ações do perfil", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Black)
+                ProfileAction("Detalhes da conta", "CPF, Pix, bio e dados profissionais.", onDetails)
+                ProfileAction("Avaliações recebidas", "Veja notas e comentários dos clientes.", onReviews)
+                ProfileAction("Notificações", "Avisos do salão e dos agendamentos.", onNotifications)
                 ProfileAction("Configurações", "Fuso horário, notificações e preferências.", onSettings)
                 ProfileAction("Alterar senha", "Atualize sua senha de acesso.", onPassword)
                 ProfileAction("Suporte e dúvidas", "Fale com o suporte do SalaoPremiun.", onSupport)
+                ProfileAction("Dúvidas do app", "Perguntas frequentes do App Profissional.", onQuestions)
                 ProfileAction("Termos e privacidade", "Regras de uso e proteção de dados.", onLegal)
+                ProfileAction("Privacidade", "Como seus dados são protegidos.", onPrivacy)
+                ProfileAction("Instalar aplicativo", "APK no Android e perfil no iOS.", onInstall)
+                ProfileAction("Onboarding", "Passos iniciais para configurar o uso.", onOnboarding)
             }
         }
         PrimaryButton("Sair", onLogout)
@@ -679,23 +836,43 @@ fun ProfileScreen(
 }
 
 @Composable
-fun SettingsScreen() {
+fun SettingsScreen(
+    state: AppUiState,
+    viewModel: AppViewModel,
+) {
+    var name by remember(state.profile?.name) { mutableStateOf(state.profile?.name.orEmpty()) }
+    var displayName by remember(state.profile?.displayName) { mutableStateOf(state.profile?.displayName.orEmpty()) }
+    var phone by remember(state.profile?.phone) { mutableStateOf(state.profile?.phone.orEmpty()) }
+    var whatsapp by remember(state.profile?.whatsapp) { mutableStateOf(state.profile?.whatsapp.orEmpty()) }
+    var email by remember(state.profile?.email) { mutableStateOf(state.profile?.email.orEmpty()) }
+    var bio by remember(state.profile?.bio) { mutableStateOf(state.profile?.bio.orEmpty()) }
     ScreenColumn {
         AppHeader("Configurações", "Preferências do App Profissional.")
         PremiumCard {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                OutlinedTextField(name, { name = it }, Modifier.fillMaxWidth(), label = { Text("Nome") })
+                OutlinedTextField(displayName, { displayName = it }, Modifier.fillMaxWidth(), label = { Text("Nome de exibição") })
+                OutlinedTextField(phone, { phone = it }, Modifier.fillMaxWidth(), label = { Text("Telefone") })
+                OutlinedTextField(whatsapp, { whatsapp = it }, Modifier.fillMaxWidth(), label = { Text("WhatsApp") })
+                OutlinedTextField(email, { email = it }, Modifier.fillMaxWidth(), label = { Text("E-mail") })
+                OutlinedTextField(bio, { bio = it }, Modifier.fillMaxWidth(), label = { Text("Bio") })
                 SettingsLine("Fuso horário do salão", "America/Campo_Grande")
                 SettingsLine("Notificações", "Ativas para agenda e comanda")
                 SettingsLine("Cache offline", "Agenda do dia, clientes e comandas recentes")
                 SettingsLine("API", "Oracle VPS")
-                PrimaryButton("Salvar configurações", {})
+                PrimaryButton("Salvar configurações", {
+                    viewModel.updateProfile(name, displayName, phone, whatsapp, email, bio, true)
+                })
             }
         }
     }
 }
 
 @Composable
-fun ChangePasswordScreen() {
+fun ChangePasswordScreen(
+    state: AppUiState,
+    viewModel: AppViewModel,
+) {
     var current by remember { mutableStateOf("") }
     var next by remember { mutableStateOf("") }
     var confirm by remember { mutableStateOf("") }
@@ -706,7 +883,8 @@ fun ChangePasswordScreen() {
                 OutlinedTextField(current, { current = it }, Modifier.fillMaxWidth(), label = { Text("Senha atual") }, visualTransformation = PasswordVisualTransformation())
                 OutlinedTextField(next, { next = it }, Modifier.fillMaxWidth(), label = { Text("Nova senha") }, visualTransformation = PasswordVisualTransformation())
                 OutlinedTextField(confirm, { confirm = it }, Modifier.fillMaxWidth(), label = { Text("Confirmar nova senha") }, visualTransformation = PasswordVisualTransformation())
-                PrimaryButton("Atualizar senha", {})
+                state.errorMessage?.let { Text(it, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                PrimaryButton("Atualizar senha", { viewModel.changePassword(current, next, confirm) })
             }
         }
     }
@@ -738,6 +916,113 @@ fun LegalScreen() {
                 Text("Dados e segurança", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                 Text("As ações críticas são validadas pela API Oracle. O app não guarda chave secreta do banco.", color = MaterialTheme.colorScheme.onSurfaceVariant)
                 PrimaryButton("Li e concordo", {})
+            }
+        }
+    }
+}
+
+@Composable
+fun PrivacyScreen() {
+    ScreenColumn {
+        AppHeader("Privacidade", "Proteção dos dados do profissional e dos clientes.")
+        PremiumCard {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                SettingsLine("Sem chave secreta no app", "O Android chama a API Oracle; o banco fica protegido no servidor.")
+                SettingsLine("Dados mínimos", "As telas carregam apenas o necessário para cada fluxo.")
+                SettingsLine("Cache local", "Usado para agenda, clientes e comandas recentes quando estiver offline.")
+                SettingsLine("Notificações", "FCM é usado somente para avisos importantes.")
+            }
+        }
+    }
+}
+
+@Composable
+fun QuestionsScreen() {
+    ScreenColumn {
+        AppHeader("Dúvidas do app", "Respostas rápidas para usar o App Profissional.")
+        PremiumCard {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                SettingsLine("Como confirmar um horário?", "Abra o atendimento na agenda e toque em Confirmar.")
+                SettingsLine("Como abrir comanda?", "Pelo detalhe do atendimento ou pela aba Comandas.")
+                SettingsLine("Como adicionar item?", "Abra a comanda, toque em Adicionar serviço ou produto e selecione o item.")
+                SettingsLine("Posso trabalhar offline?", "Você visualiza cache, mas ações críticas exigem servidor.")
+            }
+        }
+    }
+}
+
+@Composable
+fun ReviewsScreen() {
+    ScreenColumn {
+        AppHeader("Avaliações recebidas", "Notas e comentários dos clientes.")
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            MetricCard("Média", "5,0", Modifier.weight(1f))
+            MetricCard("Avaliações", "0", Modifier.weight(1f))
+        }
+        EmptyState("Nenhuma avaliação recebida", "Quando os clientes avaliarem seus atendimentos, as notas aparecem aqui.")
+    }
+}
+
+@Composable
+fun ProfileDetailsScreen(state: AppUiState) {
+    val profile = state.profile
+    ScreenColumn {
+        AppHeader("Detalhes da conta", "Dados profissionais e recebimento.")
+        PremiumCard {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                InfoRow("Nome", profile?.name ?: "Profissional")
+                InfoRow("Nome de exibição", profile?.displayName?.ifBlank { profile.name } ?: "Não informado")
+                InfoRow("Categoria", profile?.category?.ifBlank { "Não informado" } ?: "Não informado")
+                InfoRow("Cargo", profile?.role?.ifBlank { "Não informado" } ?: "Não informado")
+                InfoRow("CPF", profile?.cpf?.ifBlank { "Não informado" } ?: "Não informado")
+                InfoRow("WhatsApp", formatPhone(profile?.whatsapp?.ifBlank { profile.phone }.orEmpty()))
+                InfoRow("E-mail", profile?.email?.ifBlank { "Não informado" } ?: "Não informado")
+                InfoRow("Tipo de Pix", profile?.pixType?.ifBlank { "Não informado" } ?: "Não informado")
+                InfoRow("Chave Pix", profile?.pixKey?.ifBlank { "Não informado" } ?: "Não informado")
+                if (!profile?.bio.isNullOrBlank()) Text(profile?.bio.orEmpty(), color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+    }
+}
+
+@Composable
+fun PasswordRecoveryScreen() {
+    ScreenColumn {
+        AppHeader("Recuperar senha", "Solicite redefinição pelo suporte do salão.")
+        PremiumCard {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text("Por segurança, a recuperação do profissional precisa confirmar CPF e vínculo com o salão.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                PrimaryButton("Chamar suporte", {})
+            }
+        }
+    }
+}
+
+@Composable
+fun InstallScreen() {
+    ScreenColumn {
+        AppHeader("Instalar aplicativo", "Android usa APK. iOS usa perfil de configuração.")
+        PremiumCard {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                SettingsLine("Android", "Baixe e instale o APK assinado do App Profissional.")
+                SettingsLine("iOS", "Instale o perfil de configuração para abrir o App Profissional.")
+                SettingsLine("Nome", "App Profissional")
+                Text("No app nativo Android esta tela serve como orientação. O APK já está instalado no dispositivo.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+    }
+}
+
+@Composable
+fun OnboardingScreen() {
+    ScreenColumn {
+        AppHeader("Primeiros passos", "Configure o app para atender sem depender do painel.")
+        PremiumCard {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                SettingsLine("1. Entrar com CPF", "Use o CPF e a senha cadastrados pelo salão.")
+                SettingsLine("2. Conferir agenda", "Veja o dia de trabalho e os próximos atendimentos.")
+                SettingsLine("3. Abrir comanda", "Vincule atendimento, serviço e produtos antes de enviar ao caixa.")
+                SettingsLine("4. Ativar notificações", "Receba avisos de agenda e comissões quando o FCM estiver configurado.")
             }
         }
     }
@@ -821,8 +1106,10 @@ private fun SmallActionButton(
     text: String,
     modifier: Modifier = Modifier,
     danger: Boolean = false,
+    onClick: () -> Unit = {},
 ) {
     Surface(
+        onClick = onClick,
         modifier = modifier,
         shape = androidx.compose.foundation.shape.RoundedCornerShape(18.dp),
         color = if (danger) Color(0xFFFFF1F2) else Color.White,

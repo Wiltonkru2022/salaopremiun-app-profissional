@@ -498,6 +498,9 @@ fun AppointmentCard(
                     color = when (appointment.status) {
                         AppointmentStatus.Confirmed -> StatusColor.Green
                         AppointmentStatus.InProgress -> StatusColor.Blue
+                        AppointmentStatus.Completed -> StatusColor.Blue
+                        AppointmentStatus.NoShow -> StatusColor.Red
+                        AppointmentStatus.Canceled -> StatusColor.Red
                         AppointmentStatus.PendingConfirmation -> StatusColor.Gold
                         AppointmentStatus.WaitingPayment -> StatusColor.Gold
                     },

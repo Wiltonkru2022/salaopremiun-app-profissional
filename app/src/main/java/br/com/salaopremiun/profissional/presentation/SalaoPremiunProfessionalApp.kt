@@ -42,6 +42,7 @@ import br.com.salaopremiun.profissional.presentation.screens.NotificationsScreen
 import br.com.salaopremiun.profissional.presentation.screens.ProfileScreen
 import br.com.salaopremiun.profissional.presentation.screens.SettingsScreen
 import br.com.salaopremiun.profissional.presentation.screens.SupportScreen
+import com.google.firebase.FirebaseApp
 import com.google.firebase.messaging.FirebaseMessaging
 
 @Composable
@@ -79,8 +80,12 @@ fun SalaoPremiunProfessionalApp() {
                 }
             }
             if (state.authenticated) {
-                FirebaseMessaging.getInstance().token.addOnSuccessListener { token ->
-                    if (token.isNotBlank()) viewModel.saveDeviceToken(token)
+                runCatching {
+                    if (FirebaseApp.getApps(context).isNotEmpty()) {
+                        FirebaseMessaging.getInstance().token.addOnSuccessListener { token ->
+                            if (token.isNotBlank()) viewModel.saveDeviceToken(token)
+                        }
+                    }
                 }
             }
         }
